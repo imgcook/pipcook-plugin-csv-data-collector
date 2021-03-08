@@ -3,4 +3,5 @@ node_modules
 .vscode/
 dist
 tsconfig.tsbuildinfo
-
+build
+.history
