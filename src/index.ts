@@ -5,7 +5,7 @@ import * as path from 'path';
 import * as fs from 'fs-extra';
 import glob from 'glob-promise';
 import parse from 'csv-parse/lib/sync';
-import { downloadAndExtractTo } from '@pipcook/pipcook-core';
+import { DataSourceApi, downloadAndExtractTo } from '@pipcook/pipcook-core';
 
 const readCsvFile = (url: string): Promise<any[]> => {
   const records = parse(fs.readFileSync(url), {
@@ -36,8 +36,8 @@ const textClassDataCollect = async (option: Record<string, any>): Promise<any> =
   await fs.remove(dataDir);
   await fs.ensureDir(dataDir);
 
-  const tempDir = await downloadAndExtractTo(url);
-  const csvPaths = await glob(path.join(tempDir, '**', '+(train|validation|test)', '*.csv'));
+  await downloadAndExtractTo(url, dataDir);
+  const csvPaths = await glob(path.join(dataDir, '**', '+(train|validation|test)', '*.csv'));
   const trainData: any[] = [];
   const validationData: any[] = [];
   const testData: any[] = [];
@@ -79,41 +79,45 @@ const textClassDataCollect = async (option: Record<string, any>): Promise<any> =
         dataKeys: [ 'input' ]
       }
     },
-    nextTest: async (): Promise<any> => {
-      return testData[indexTest++];
-    },
-    nextTrain: async (): Promise<any> => {
-      return trainData[indexTrain++];
-    },
-    nextBatchTest: async (batchSize: number): Promise<Array<any> | null> => {
-      let result = [];
-      for (let i = 0; i < batchSize; i++) {
-        const s = testData[indexTest++];
-        if (s) {
-          result.push(s);
-        } else {
-          break;
+    test: {
+      next: async (): Promise<any> => {
+        return testData[indexTest++];
+      },
+      nextBatch: async (batchSize: number): Promise<Array<any> | null> => {
+        let result = [];
+        for (let i = 0; i < batchSize; i++) {
+          const s = testData[indexTest++];
+          if (s) {
+            result.push(s);
+          } else {
+            break;
+          }
         }
+        return result;
+      },
+      seek: async (pos: number): Promise<void> => {
+        indexTest = pos;
       }
-      return result;
     },
-    nextBatchTrain: async (batchSize: number): Promise<Array<any> | null> => {
-      let result = [];
-      for (let i = 0; i < batchSize; i++) {
-        const s = testData[indexTrain++];
-        if (s) {
-          result.push(s);
-        } else {
-          break;
+    train: {
+      next: async (): Promise<any> => {
+        return trainData[indexTrain++];
+      },
+      nextBatch: async (batchSize: number): Promise<Array<any> | null> => {
+        let result = [];
+        for (let i = 0; i < batchSize; i++) {
+          const s = testData[indexTrain++];
+          if (s) {
+            result.push(s);
+          } else {
+            break;
+          }
         }
+        return result;
+      },
+      seek: async (pos: number): Promise<void> => {
+        indexTrain = pos;
       }
-      return result;
-    },
-    seekTest: async (pos: number): Promise<void> => {
-      indexTest = pos;
-    },
-    seekTrain: async (pos: number): Promise<void> => {
-      indexTrain = pos;
     }
   };
 };
