@@ -5,7 +5,7 @@ import * as path from 'path';
 import * as fs from 'fs-extra';
 import glob from 'glob-promise';
 import parse from 'csv-parse/lib/sync';
-import { DataSourceApi, downloadAndExtractTo } from '@pipcook/pipcook-core';
+import { DataSourceApi, DataSourceEntry, DataSourceType, downloadAndExtractTo, Sample, ScriptContext, TableDataSourceMeta } from '@pipcook/pipcook-core';
 
 const readCsvFile = (url: string): Promise<any[]> => {
   const records = parse(fs.readFileSync(url), {
@@ -28,11 +28,11 @@ export enum TableColumnType {
 /**
  * collect csv data
  */
-const textClassDataCollect = async (option: Record<string, any>): Promise<any> => {
-  let {
-    url = '',
-    dataDir
+const textClassDataCollect: DataSourceEntry<string> = async (option: Record<string, any>, context: ScriptContext): Promise<DataSourceApi<string>> => {
+  const {
+    url = ''
   } = option;
+  const { dataDir } = context.workspace;
   await fs.remove(dataDir);
   await fs.ensureDir(dataDir);
 
@@ -40,7 +40,7 @@ const textClassDataCollect = async (option: Record<string, any>): Promise<any> =
   const csvPaths = await glob(path.join(dataDir, '**', '+(train|validation|test)', '*.csv'));
   const trainData: any[] = [];
   const validationData: any[] = [];
-  const testData: any[] = [];
+  const testData: Sample[] = [];
   for (let i = 0; i < csvPaths.length; i++) {
     const csvPath = csvPaths[i];
     const splitString = csvPath.split(path.sep);
@@ -65,9 +65,9 @@ const textClassDataCollect = async (option: Record<string, any>): Promise<any> =
   let indexTrain = 0;
   let indexTest = 0;
   return {
-    getDataSourceMetadata: () => {
+    getDataSourceMeta: async () => {
       return {
-        type: 0,
+        type: DataSourceType.Table,
         size: {
           train: trainData.length,
           test: testData.length
@@ -76,7 +76,8 @@ const textClassDataCollect = async (option: Record<string, any>): Promise<any> =
           { name: 'input', type: TableColumnType.String },
           { name: 'output', type: TableColumnType.String }
         ],
-        dataKeys: [ 'input' ]
+        dataKeys: [ 'input' ],
+        labelMap: new Map()
       }
     },
     test: {
